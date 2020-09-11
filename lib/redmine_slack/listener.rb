@@ -10,7 +10,12 @@ class SlackListener < Redmine::Hook::Listener
 		return unless channel and url
 		return if issue.is_private?
 
-		msg = "[#{escape issue.project}] #{escape issue.author} created <#{object_url issue}|#{escape issue}>#{mentions issue.description}"
+		if issue.assigned_to
+			assigned_slackId = getSlackID issue.assigned_to.id
+			msg = "<@#{assigned_slackId}> \n\n [#{escape issue.project}] #{escape issue.author} Created <#{object_url issue}|#{escape issue}>#{mentions issue.description}"
+		else
+			msg = "[#{escape issue.project}] #{escape issue.author} Created <#{object_url issue}|#{escape issue}>#{mentions issue.description}"
+		end
 
 		attachment = {}
 		attachment[:text] = escape issue.description if issue.description
@@ -48,7 +53,12 @@ class SlackListener < Redmine::Hook::Listener
 		return if issue.is_private?
 		return if journal.private_notes?
 
-		msg = "[#{escape issue.project}] #{escape journal.user.to_s} updated <#{object_url issue}|#{escape issue}>#{mentions journal.notes}"
+		if issue.assigned_to.login == journal.user.login
+			msg = "[#{escape issue.project}] #{escape journal.user.to_s} Updated <#{object_url issue}|#{escape issue}>#{mentions journal.notes}"
+		else
+			assigned_slackId = getSlackID issue.assigned_to.id
+			msg = "<@#{assigned_slackId}> \n\n [#{escape issue.project}] #{escape journal.user.to_s} Updated <#{object_url issue}|#{escape issue}>#{mentions journal.notes}"
+		end
 
 		attachment = {}
 		attachment[:text] = escape journal.notes if journal.notes
@@ -68,7 +78,12 @@ class SlackListener < Redmine::Hook::Listener
 		return unless channel and url and issue.save
 		return if issue.is_private?
 
-		msg = "[#{escape issue.project}] #{escape journal.user.to_s} updated <#{object_url issue}|#{escape issue}>"
+		if issue.assigned_to.login == journal.user.login
+			msg = "[#{escape issue.project}] #{escape journal.user.to_s} Updated <#{object_url issue}|#{escape issue}>"
+		else
+			assigned_slackId = getSlackID issue.assigned_to.id
+			msg = "<@#{assigned_slackId}> \n\n [#{escape issue.project}] #{escape journal.user.to_s} Updated <#{object_url issue}|#{escape issue}>"
+		end
 
 		repository = changeset.repository
 
@@ -162,6 +177,12 @@ class SlackListener < Redmine::Hook::Listener
 			Rails.logger.warn("cannot connect to #{url}")
 			Rails.logger.warn(e)
 		end
+	end
+
+	def getSlackID(issue_assigned_to_id)
+		usercf = UserCustomField.find_by_name("Slack")
+		assigned_slackId = CustomValue.where(:customized_id => issue_assigned_to_id, :custom_field_id =>  usercf.id).last rescue nil
+		return assigned_slackId
 	end
 
 private
